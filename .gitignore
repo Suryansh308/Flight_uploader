@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+
+# Playwright Session
+session.json
+
+# Temporary Files
+temp/
+uploads/split_pages/
+
+# Ignore incoming PDFs
+uploads/*.pdf
+# But keep the folder
+!uploads/.gitkeep
+# Logs
+logs/
+
+# VS Code
+.vscode/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Python cache
+.pytest_cache/
