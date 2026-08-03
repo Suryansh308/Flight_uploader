@@ -27,9 +27,9 @@ class Manager:
             self.portal.page
         )
 
-    # ---------------------------------------------------------
+    # ----------------------------------------------------------
     # Load PDF
-    # ---------------------------------------------------------
+    # ----------------------------------------------------------
 
     def load_pdf(self):
 
@@ -46,177 +46,173 @@ class Manager:
 
         return extractor, parser
 
-    # ---------------------------------------------------------
-    # Process One Trip
-    # ---------------------------------------------------------
+    # ----------------------------------------------------------
+    # Extract All Trips
+    # ----------------------------------------------------------
+
+    def extract_all_trips(
+        self,
+        extractor,
+        parser
+    ):
+
+        trips = []
+
+        print("\n==========================================")
+        print("Reading PDF")
+        print("==========================================")
+
+        for page in range(extractor.page_count):
+
+            print(f"\nReading Page {page + 1}...")
+
+            try:
+
+                trip = extractor.get_trip(
+                    page,
+                    parser
+                )
+
+                print(
+                    f"✅ {trip.flight_number} | {trip.flight_date}"
+                )
+
+                trips.append(trip)
+
+            except Exception as e:
+
+                print(
+                    f"❌ Failed to parse Page {page + 1}"
+                )
+
+                print(e)
+
+                raise
+
+        #
+        # Portal is newest → oldest
+        # PDF is oldest → newest
+        #
+
+        trips.reverse()
+
+        print(f"\nTrips Found : {len(trips)}")
+
+        print("\nDetected Trips")
+
+        print("------------------------------------------")
+
+        for i, trip in enumerate(trips, start=1):
+
+            print(
+                f"{i}. "
+                f"{trip.flight_number} | "
+                f"{trip.flight_date}"
+            )
+
+        print("------------------------------------------")
+
+        return trips
+
+    # ----------------------------------------------------------
+    # Upload One Trip
+    # ----------------------------------------------------------
 
     def process_trip(
-
         self,
-
-        page_index,
-
-        total_pages,
-
-        extractor,
-
-        parser
-
+        index,
+        total,
+        trip
     ):
 
         print()
 
         print("=" * 60)
 
-        print(
-
-            f"[{page_index + 1}/{total_pages}]"
-
-        )
+        print(f"[{index}/{total}]")
 
         print("=" * 60)
 
-        #
-        # Read PDF Page
-        #
-
-        trip = extractor.get_trip(
-
-            page_index,
-
-            parser
-
-        )
-
         print()
 
-        print(
+        print(f"Flight : {trip.flight_number}")
 
-            f"Flight : {trip.flight_number}"
+        print(f"Date   : {trip.flight_date}")
 
-        )
-
-        print(
-
-            f"Date   : {trip.flight_date}"
-
-        )
-
-        print(
-
-            f"PDF    : {trip.pdf_file.name}"
-
-        )
-
-        #
-        # IMPORTANT
-        #
-        # Every search starts from Page 1
-        #
-
-        self.search.reset()
-
-        #
-        # Search Trip
-        #
+        print(f"PDF    : {trip.pdf_file.name}")
 
         found = self.search.find_trip(
 
-            trip.flight_number,
+            flight_number=trip.flight_number,
 
-            trip.flight_date
+            flight_date=trip.flight_date
 
         )
 
         if not found:
 
-            print()
-
-            print("❌ Trip Not Found")
+            print("\n❌ Trip Not Found")
 
             return False
 
-        #
-        # Upload
-        #
-
-        print()
-
-        print("Uploading...")
+        print("\nUploading...")
 
         self.upload.upload_document(
-
             trip.pdf_file
-
         )
-        #
-# Give portal time to rebuild the table
-#
 
-        self.portal.page.wait_for_timeout(2000)
+        #
+        # Allow portal to refresh
+        #
+
+        self.portal.page.wait_for_timeout(
+            2000
+        )
+
         print("✅ Upload Completed")
 
         return True
 
-    # ---------------------------------------------------------
+    # ----------------------------------------------------------
     # Run
-    # ---------------------------------------------------------
+    # ----------------------------------------------------------
 
     def run(self):
 
-        success = 0
-
-        failed = 0
-
-        extractor = None
-
         try:
-
-            #
-            # Login
-            #
 
             self.portal.login()
 
-            #
-            # Open My Trips
-            #
-
             self.navigation.go_to_my_trips()
-
-            #
-            # PDF
-            #
 
             extractor, parser = self.load_pdf()
 
-            total_pages = extractor.page_count
-
-            print()
-
-            print(
-
-                f"Total Pages : {total_pages}"
-
+            trips = self.extract_all_trips(
+                extractor,
+                parser
             )
 
-            #
-            # Process Every PDF Page
-            #
+            success = 0
 
-            for page in range(total_pages):
+            failed = 0
+
+            for index, trip in enumerate(
+
+                trips,
+
+                start=1
+
+            ):
 
                 try:
 
                     completed = self.process_trip(
 
-                        page,
+                        index,
 
-                        total_pages,
+                        len(trips),
 
-                        extractor,
-
-                        parser
+                        trip
 
                     )
 
@@ -232,54 +228,24 @@ class Manager:
 
                     failed += 1
 
-                    print()
-
-                    print("❌ ERROR")
+                    print("\n❌ ERROR")
 
                     print(e)
 
-                    #
-                    # Continue with next PDF page
-                    #
-
-                    continue
-
-            #
-            # Summary
-            #
-
-            print()
-
-            print("=" * 60)
+            print("\n==========================================")
 
             print("UPLOAD SUMMARY")
 
-            print("=" * 60)
+            print("==========================================")
 
-            print(
+            print(f"Successful : {success}")
 
-                f"Successful : {success}"
+            print(f"Failed     : {failed}")
 
-            )
+            print("==========================================")
 
-            print(
-
-                f"Failed     : {failed}"
-
-            )
-
-            print("=" * 60)
-
-            input(
-
-                "\nPress ENTER to close..."
-
-            )
+            input("\nPress ENTER to close...")
 
         finally:
-
-            if extractor:
-
-                extractor.close()
 
             self.portal.close()

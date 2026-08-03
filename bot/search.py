@@ -14,6 +14,12 @@ class TripFinder:
 
         self.page = page
 
+        #
+        # Remember current portal page
+        #
+
+        self.current_page = 1
+
     # ---------------------------------------------------------
     # Wait For Table
     # ---------------------------------------------------------
@@ -199,21 +205,19 @@ class TripFinder:
 
             return False
 
-        print("← Previous Page")
+        print(f"← Page {self.current_page - 1}")
 
-        button = self.page.locator(
+        self.page.locator(
             PREVIOUS_PAGE
-        )
-
-        button.click()
-
-        #
-        # Wait for table to stabilize
-        #
+        ).click()
 
         self.wait_for_table()
 
-        self.page.wait_for_timeout(1000)
+        self.page.wait_for_timeout(800)
+
+        if self.current_page > 1:
+
+            self.current_page -= 1
 
         return True
 
@@ -227,21 +231,17 @@ class TripFinder:
 
             return False
 
-        print("→ Next Page")
+        print(f"→ Page {self.current_page + 1}")
 
-        button = self.page.locator(
+        self.page.locator(
             NEXT_PAGE
-        )
-
-        button.click()
-
-        #
-        # Wait for table refresh
-        #
+        ).click()
 
         self.wait_for_table()
 
-        self.page.wait_for_timeout(1000)
+        self.page.wait_for_timeout(800)
+
+        self.current_page += 1
 
         return True
 
@@ -255,37 +255,25 @@ class TripFinder:
 
     def reset(self):
 
+        if self.current_page == 1:
+
+            return
+
         print("\nResetting to first page...")
 
-        safety = 20
+        while self.current_page > 1:
 
-        while safety > 0:
+            moved = self.previous_page()
 
-            try:
-
-                previous = self.page.locator(
-                    PREVIOUS_PAGE
-                )
-
-                if previous.is_disabled():
-
-                    break
-
-                previous.click()
-
-                #
-                # Wait for table refresh
-                #
-
-                self.wait_for_table()
-
-                self.page.wait_for_timeout(800)
-
-                safety -= 1
-
-            except Exception:
+            if not moved:
 
                 break
+
+        self.wait_for_table()
+
+        self.page.wait_for_timeout(800)
+
+        self.current_page = 1
 
         print("✅ Reset Complete")
         # ---------------------------------------------------------
@@ -380,30 +368,24 @@ class TripFinder:
         print("Searching Trip")
         print("=" * 60)
 
-        #
-        # Always start from Page 1
-        #
+        page_number = self.current_page
 
-        self.reset()
+        searched_from_start = False
 
-        page_number = 1
-
-        #
-        # Safety limit
-        #
-
-        max_pages = 100
-
-        while page_number <= max_pages:
+        while True:
 
             print()
+
             print(
                 f"Searching Page {page_number}"
             )
 
             found = self.search_current_page(
+
                 flight_number,
+
                 flight_date
+
             )
 
             if found:
@@ -411,35 +393,37 @@ class TripFinder:
                 return True
 
             #
-            # Last Page?
+            # Continue forward
             #
 
-            if self.is_last_page():
+            if not self.is_last_page():
 
-                print(
-                    "\nReached Last Page."
-                )
+                moved = self.next_page()
+
+                if moved:
+
+                    page_number = self.current_page
+
+                    continue
+
+            #
+            # Reached last page
+            #
+
+            if searched_from_start:
+
+                print("\nReached Last Page.")
 
                 return False
 
             #
-            # Next Page
+            # One fallback search
             #
 
-            moved = self.next_page()
+            print("\nRestarting search from Page 1...")
 
-            if not moved:
+            self.reset()
 
-                return False
+            searched_from_start = True
 
-            page_number += 1
-
-        #
-        # Infinite-loop protection
-        #
-
-        print(
-            "\nPagination safety limit reached."
-        )
-
-        return False    
+            page_number = self.current_page    

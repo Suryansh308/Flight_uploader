@@ -6,54 +6,65 @@ from models.trip import TripDocument
 class PDFParser:
 
     DATE_PATTERN = re.compile(r"\d{2}/\d{2}/\d{4}")
-    FLIGHT_PATTERN = re.compile(r"^[A-Z]{2,}\d{2,}$")
+    FLIGHT_PATTERN = re.compile(r"^[A-Z]{2,}\d+[A-Z]*$")
 
     def parse(self, words, page_number):
 
         flight_number = None
         flight_date = None
 
-        # -----------------------------
-        # Locate the "FLT" label
-        # -----------------------------
+        print("\n========== PARSER TOKENS ==========")
 
-        flt_word = None
+        for word in words[:80]:
+            print(repr(word[4]))
+
+        print("==================================\n")
+
+
+        # -----------------------------
+# Find Flight Number
+# -----------------------------
+
+        IGNORE = {
+
+            "FLT",
+            "NO",
+            "DATE",
+            "HUB",
+            "CREW",
+            "ORIGIN",
+            "DESTINATION",
+            "LOCATION",
+            "PRINT",
+            "TRIPSHEET",
+
+        }
 
         for word in words:
 
-            if word[4].upper() == "FLT":
-                flt_word = word
+            text = word[4].upper().strip()
+
+            if text in IGNORE:
+
+                continue
+
+            if self.DATE_PATTERN.fullmatch(text):
+
+                continue
+
+            if self.FLIGHT_PATTERN.fullmatch(text):
+
+                flight_number = text
+
                 break
 
-        if flt_word is None:
-            raise Exception("FLT label not found")
+        if flight_number is None:
 
-        flt_x = flt_word[0]
-        flt_y = flt_word[1]
+            raise Exception(
+                "Flight Number not found"
+            )
 
-        candidates = []
-
-        # -----------------------------
-        # Find words on the same line
-        # and to the right of FLT
-        # -----------------------------
-
-        for word in words:
-
-            x = word[0]
-            y = word[1]
-            text = word[4]
-
-            if abs(y - flt_y) < 5 and x > flt_x:
-
-                if self.FLIGHT_PATTERN.match(text):
-                    candidates.append(word)
-
-        if not candidates:
-            raise Exception("Flight Number not found")
-
-        # nearest candidate
-        flight_number = sorted(candidates, key=lambda w: w[0])[0][4]
+        
 
         # -----------------------------
         # Find first date

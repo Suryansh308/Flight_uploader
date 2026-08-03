@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
-
+ENABLE_OCR = True
 UPLOADS_DIR = BASE_DIR / "uploads"
 TEMP_DIR = BASE_DIR / "temp"
 LOGS_DIR = BASE_DIR / "logs"
