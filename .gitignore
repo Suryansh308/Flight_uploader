@@ -18,10 +18,15 @@ session.json
 temp/
 uploads/split_pages/
 
-# Ignore incoming PDFs
+# Incoming PDFs
 uploads/*.pdf
-# But keep the folder
+
+# Keep uploads directory
 !uploads/.gitkeep
+
+# Runtime results
+results/
+
 # Logs
 logs/
 
@@ -34,3 +39,6 @@ Thumbs.db
 
 # Python cache
 .pytest_cache/
+
+# Runtime results
+results/

@@ -1,5 +1,7 @@
-from playwright.sync_api import TimeoutError
+from datetime import datetime
+
 from utils.matcher import matcher
+
 from bot.selectors import (
     TABLE,
     TABLE_ROWS,
@@ -14,10 +16,7 @@ class TripFinder:
 
         self.page = page
 
-        #
-        # Remember current portal page
-        #
-
+        # Portal is newest -> oldest
         self.current_page = 1
 
     # ---------------------------------------------------------
@@ -59,7 +58,7 @@ class TripFinder:
 
                     visible_rows.append(row)
 
-            except:
+            except Exception:
 
                 continue
 
@@ -69,17 +68,22 @@ class TripFinder:
     # Read Flight Number
     # ---------------------------------------------------------
 
+    # ---------------------------------------------------------
+# Read Flight Number
+# ---------------------------------------------------------
+
     def get_flight(self, row):
 
         cells = row.locator("td")
 
-        text = cells.nth(8).text_content()
+        text = cells.nth(7).text_content()
 
         if text:
 
             return text.strip()
 
         return ""
+
 
     # ---------------------------------------------------------
     # Read Flight Date
@@ -89,13 +93,45 @@ class TripFinder:
 
         cells = row.locator("td")
 
-        text = cells.nth(9).text_content()
+        text = cells.nth(8).text_content()
 
         if text:
 
             return text.strip()
 
-        return ""
+        return ""    # ---------------------------------------------------------
+    # Parse Date
+    # ---------------------------------------------------------
+
+    def parse_date(self, value):
+
+        if not value:
+
+            return None
+
+        value = value.strip()
+
+        formats = [
+            "%d/%m/%Y",
+            "%d-%m-%Y",
+            "%d/%m/%y",
+            "%d-%m-%y",
+        ]
+
+        for fmt in formats:
+
+            try:
+
+                return datetime.strptime(
+                    value,
+                    fmt
+                ).date()
+
+            except ValueError:
+
+                continue
+
+        return None
 
     # ---------------------------------------------------------
     # Select Row
@@ -114,10 +150,12 @@ class TripFinder:
 
         checkbox.click()
 
-        self.page.wait_for_timeout(500)
+        self.page.wait_for_timeout(
+            500
+        )
 
     # ---------------------------------------------------------
-    # Print Rows (Debug)
+    # Print Rows
     # ---------------------------------------------------------
 
     def print_rows(self):
@@ -134,32 +172,28 @@ class TripFinder:
 
         print("=" * 60)
 
-        for index, row in enumerate(rows, start=1):
+        for index, row in enumerate(
+            rows,
+            start=1
+        ):
 
             try:
 
                 print(
-
-                    f"{index}.",
-
-                    self.get_flight(row),
-
-                    "|",
-
-                    self.get_date(row)
-
+                    f"{index}. "
+                    f"{self.get_flight(row)} | "
+                    f"{self.get_date(row)}"
                 )
 
             except Exception:
 
                 print(
-
                     f"{index}. Unable to read"
-
                 )
 
         print("=" * 60)
-        # ---------------------------------------------------------
+
+    # ---------------------------------------------------------
     # Is First Page
     # ---------------------------------------------------------
 
@@ -173,7 +207,7 @@ class TripFinder:
 
             return button.is_disabled()
 
-        except:
+        except Exception:
 
             return True
 
@@ -191,7 +225,7 @@ class TripFinder:
 
             return button.is_disabled()
 
-        except:
+        except Exception:
 
             return True
 
@@ -205,7 +239,10 @@ class TripFinder:
 
             return False
 
-        print(f"← Page {self.current_page - 1}")
+        print(
+            f"← Page "
+            f"{self.current_page - 1}"
+        )
 
         self.page.locator(
             PREVIOUS_PAGE
@@ -213,7 +250,9 @@ class TripFinder:
 
         self.wait_for_table()
 
-        self.page.wait_for_timeout(800)
+        self.page.wait_for_timeout(
+            800
+        )
 
         if self.current_page > 1:
 
@@ -231,7 +270,10 @@ class TripFinder:
 
             return False
 
-        print(f"→ Page {self.current_page + 1}")
+        print(
+            f"→ Page "
+            f"{self.current_page + 1}"
+        )
 
         self.page.locator(
             NEXT_PAGE
@@ -239,18 +281,16 @@ class TripFinder:
 
         self.wait_for_table()
 
-        self.page.wait_for_timeout(800)
+        self.page.wait_for_timeout(
+            800
+        )
 
         self.current_page += 1
 
         return True
 
     # ---------------------------------------------------------
-    # Reset Search
-    # ---------------------------------------------------------
-
-        # ---------------------------------------------------------
-    # Reset Search
+    # Reset To First Page
     # ---------------------------------------------------------
 
     def reset(self):
@@ -259,7 +299,9 @@ class TripFinder:
 
             return
 
-        print("\nResetting to first page...")
+        print(
+            "\nResetting to first page..."
+        )
 
         while self.current_page > 1:
 
@@ -271,12 +313,17 @@ class TripFinder:
 
         self.wait_for_table()
 
-        self.page.wait_for_timeout(800)
+        self.page.wait_for_timeout(
+            800
+        )
 
         self.current_page = 1
 
-        print("✅ Reset Complete")
-        # ---------------------------------------------------------
+        print(
+            "✅ Reset Complete"
+        )
+
+    # ---------------------------------------------------------
     # Search Current Page
     # ---------------------------------------------------------
 
@@ -288,14 +335,57 @@ class TripFinder:
 
         rows = self.get_rows()
 
-        print(f"\nVisible Rows : {len(rows)}")
+        print(
+            f"\nVisible Rows : "
+            f"{len(rows)}"
+        )
 
-        for index, row in enumerate(rows, start=1):
+        target_date = self.parse_date(
+            flight_date
+        )
+
+        if target_date is None:
+
+            print(
+                f"❌ Invalid target date: "
+                f"{flight_date}"
+            )
+
+            return {
+                "found": False,
+                "passed_target": False,
+                "best_score": 0.0,
+                "best_flight": "",
+                "best_date": ""
+            }
+
+        best_row = None
+        best_score = 0.0
+        best_flight = ""
+        best_date = ""
+
+        page_has_target_date = False
+        page_has_older_date = False
+        parsed_dates = []
+
+        # -----------------------------------------------------
+        # Inspect EVERY row first
+        # -----------------------------------------------------
+
+        for index, row in enumerate(
+            rows,
+            start=1
+        ):
 
             try:
 
-                portal_flight = self.get_flight(row)
-                portal_date = self.get_date(row)
+                portal_flight = (
+                    self.get_flight(row)
+                )
+
+                portal_date = (
+                    self.get_date(row)
+                )
 
                 print(
                     f"Row {index} | "
@@ -303,44 +393,77 @@ class TripFinder:
                     f"{portal_date}"
                 )
 
-                #
-                # Exact Match
-                #
-                if (matcher.match(
+                row_date = self.parse_date(
+                    portal_date
+                )
 
-                        portal_flight,
+                if row_date is None:
 
-                        flight_number
-
+                    print(
+                        f"  ⚠️ Unable to parse "
+                        f"portal date: "
+                        f"{portal_date}"
                     )
 
-                    and
+                    continue
 
-                    portal_date.strip()
+                parsed_dates.append(
+                    row_date
+                )
 
-                    ==
+                # -------------------------------------------------
+                # Date comparison
+                # -------------------------------------------------
 
-                    flight_date.strip()
+                if row_date == target_date:
 
-                ):
+                    page_has_target_date = True
 
-                    print("\n✅ Matching Trip Found")
+                elif row_date < target_date:
 
-                    self.click_checkbox(row)
+                    page_has_older_date = True
 
-                    return True
+                    # Older than target:
+                    # don't compare flight number.
+                    continue
 
-                #
-                # Future OCR Matching Hook
-                #
-                # elif similarity(
-                #     portal_flight,
-                #     flight_number
-                # ) > 0.90:
-                #
-                #     self.click_checkbox(row)
-                #     return True
-                #
+                else:
+
+                    # Newer than target.
+                    # Still inspect the page, but it cannot match.
+                    continue
+
+                # -------------------------------------------------
+                # Exact target date -> compare flight
+                # -------------------------------------------------
+
+                score = matcher.similarity(
+                    portal_flight,
+                    flight_number
+                )
+
+                print(
+                    f"  Similarity : "
+                    f"{portal_flight}"
+                    f" <-> "
+                    f"{flight_number}"
+                    f" = "
+                    f"{score:.2f}"
+                )
+
+                if score > best_score:
+
+                    best_score = score
+
+                    best_row = row
+
+                    best_flight = (
+                        portal_flight
+                    )
+
+                    best_date = (
+                        portal_date
+                    )
 
             except Exception as e:
 
@@ -350,7 +473,92 @@ class TripFinder:
 
                 print(e)
 
-        return False
+        # -----------------------------------------------------
+        # Best candidate found
+        # -----------------------------------------------------
+
+        if best_row is not None:
+
+            print(
+                "\nBest Candidate"
+            )
+
+            print(
+                f"Portal Flight : "
+                f"{best_flight}"
+            )
+
+            print(
+                f"Portal Date   : "
+                f"{best_date}"
+            )
+
+            print(
+                f"OCR Flight    : "
+                f"{flight_number}"
+            )
+
+            print(
+                f"Target Date   : "
+                f"{flight_date}"
+            )
+
+            print(
+                f"Similarity    : "
+                f"{best_score:.2f}"
+            )
+
+            # -------------------------------------------------
+            # Existing matcher threshold = 0.90
+            # -------------------------------------------------
+
+            if best_score >= matcher.threshold:
+
+                print(
+                    "\n✅ Matching Trip Found"
+                )
+
+                self.click_checkbox(
+                    best_row
+                )
+
+                return {
+                    "found": True,
+                    "passed_target": False,
+                    "best_score": best_score,
+                    "best_flight": best_flight,
+                    "best_date": best_date
+                }
+
+            print(
+                "\n⚠️ Candidate found, "
+                "but similarity is below "
+                f"{matcher.threshold:.2f}"
+            )
+
+        # -----------------------------------------------------
+        # Determine whether target date has been passed
+        # -----------------------------------------------------
+
+        passed_target = False
+
+        if parsed_dates:
+
+            oldest_date = min(
+                parsed_dates
+            )
+
+            if oldest_date < target_date:
+
+                passed_target = True
+
+        return {
+            "found": False,
+            "passed_target": passed_target,
+            "best_score": best_score,
+            "best_flight": best_flight,
+            "best_date": best_date
+        }
 
     # ---------------------------------------------------------
     # Find Trip
@@ -365,65 +573,124 @@ class TripFinder:
         print()
 
         print("=" * 60)
-        print("Searching Trip")
+
+        print(
+            "Searching Trip"
+        )
+
         print("=" * 60)
 
-        page_number = self.current_page
+        print(
+            f"Looking for: "
+            f"{flight_number} | "
+            f"{flight_date}"
+        )
 
-        searched_from_start = False
+        target_date = self.parse_date(
+            flight_date
+        )
+
+        if target_date is None:
+
+            print(
+                "\n❌ Invalid flight date."
+            )
+
+            print(
+                f"Date: {flight_date}"
+            )
+
+            return False
+
+        # -----------------------------------------------------
+        # Always start a new trip from Page 1
+        # -----------------------------------------------------
+
+        self.reset()
 
         while True:
 
             print()
 
             print(
-                f"Searching Page {page_number}"
+                f"Searching Page "
+                f"{self.current_page}"
             )
 
-            found = self.search_current_page(
-
-                flight_number,
-
-                flight_date
-
+            result = (
+                self.search_current_page(
+                    flight_number,
+                    flight_date
+                )
             )
 
-            if found:
+            # -------------------------------------------------
+            # Found
+            # -------------------------------------------------
+
+            if result["found"]:
 
                 return True
 
-            #
-            # Continue forward
-            #
+            # -------------------------------------------------
+            # Date boundary reached
+            # -------------------------------------------------
 
-            if not self.is_last_page():
+            if result["passed_target"]:
 
-                moved = self.next_page()
+                print(
+                    "\n🛑 Date boundary reached."
+                )
 
-                if moved:
+                print(
+                    f"Target Date : "
+                    f"{flight_date}"
+                )
 
-                    page_number = self.current_page
+                print(
+                    "Portal is now older "
+                    "than the target date."
+                )
 
-                    continue
-
-            #
-            # Reached last page
-            #
-
-            if searched_from_start:
-
-                print("\nReached Last Page.")
+                print(
+                    "Stopping search."
+                )
 
                 return False
 
-            #
-            # One fallback search
-            #
+            # -------------------------------------------------
+            # Last portal page
+            # -------------------------------------------------
 
-            print("\nRestarting search from Page 1...")
+            if self.is_last_page():
 
-            self.reset()
+                print(
+                    "\n❌ Reached last portal page."
+                )
 
-            searched_from_start = True
+                print(
+                    f"Flight : "
+                    f"{flight_number}"
+                )
 
-            page_number = self.current_page    
+                print(
+                    f"Date   : "
+                    f"{flight_date}"
+                )
+
+                return False
+
+            # -------------------------------------------------
+            # Move forward
+            # -------------------------------------------------
+
+            moved = self.next_page()
+
+            if not moved:
+
+                print(
+                    "\n❌ Unable to move "
+                    "to next page."
+                )
+
+                return False

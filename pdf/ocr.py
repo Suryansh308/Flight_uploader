@@ -1,147 +1,38 @@
-import fitz
-import easyocr
 import numpy as np
-from PIL import Image
-from pdf.regions import (
-    FLIGHT_BOX,
-    DATE_BOX,
-)
+from PIL import Image, ImageOps
+from paddleocr import PaddleOCR
+
 
 class OCRExtractor:
 
     def __init__(self):
 
-        #
-        # Initialize EasyOCR once
-        #
+        print("\nInitializing PaddleOCR...")
 
-        self.reader = easyocr.Reader(
-            ["en"],
-            gpu=True
+        self.reader = PaddleOCR(
+            lang="en",
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
         )
+
+        print("✅ PaddleOCR Ready")
 
     # ---------------------------------------------------------
-    # Extract Words From Page
+    # Render + Crop Region
     # ---------------------------------------------------------
 
-    def extract(self, page):
+    def _prepare_region(
+        self,
+        page,
+        region,
+        dpi=600
+    ):
 
-    #
-    # Render full page
-    #
-
-        pix = page.get_pixmap(dpi=300)
-
-        image = Image.frombytes(
-            "RGB",
-            [pix.width, pix.height],
-            pix.samples
+        pix = page.get_pixmap(
+            dpi=dpi,
+            alpha=False
         )
-
-        #
-        # Page dimensions
-        #
-
-        width, height = image.size
-
-        #
-        # Header region
-        # (percentage based)
-        #
-
-        left = int(width * 0.210)
-        top = int(height * 0.178)
-        right = int(width * 0.600)
-        bottom = int(height * 0.268)
-
-        #
-        # Crop only header
-        #
-
-        image = image.crop(
-            (
-                left,
-                top,
-                right,
-                bottom
-            )
-        )
-
-        #
-        # Convert to grayscale
-        #
-
-        image = image.convert("L")
-
-        #
-        # Increase contrast
-        #
-
-        from PIL import ImageOps
-
-        image = ImageOps.autocontrast(image)
-
-        #
-        # Convert to numpy
-        #
-
-        image = np.array(image)
-
-        #
-        # OCR
-        #
-
-        results = self.reader.readtext(
-            image,
-            detail=1
-        )
-
-        words = []
-
-        for item in results:
-
-            bbox, text, confidence = item
-
-            tokens = text.split()
-
-            x0 = bbox[0][0]
-            y0 = bbox[0][1]
-            x1 = bbox[2][0]
-            y1 = bbox[2][1]
-
-            current_x = x0
-
-            width = (x1 - x0) / max(
-                len(tokens),
-                1
-            )
-
-            for token in tokens:
-
-                words.append(
-                    (
-                        current_x,
-                        y0,
-                        current_x + width,
-                        y1,
-                        token,
-                        0,
-                        0,
-                        0
-                    )
-                )
-
-                current_x += width
-
-        return words
-
-    def extract_region(
-    self,
-    page,
-    region
-):
-
-        pix = page.get_pixmap(dpi=400)
 
         image = Image.frombytes(
             "RGB",
@@ -165,36 +56,115 @@ class OCRExtractor:
             )
         )
 
+        image = ImageOps.autocontrast(
+            image
+        )
+
+        return np.array(image)
+
+    # ---------------------------------------------------------
+    # OCR Region
+    # ---------------------------------------------------------
+
+    def extract_region(
+        self,
+        page,
+        region
+    ):
+
+        image = self._prepare_region(
+            page,
+            region,
+            dpi=600
+        )
+
+        result = self.reader.predict(
+            image
+        )
+
+        texts = []
+
+        for page_result in result:
+
+            try:
+
+                data = page_result
+
+                if "rec_texts" in data:
+
+                    detected = data["rec_texts"]
+
+                elif "res" in data:
+
+                    detected = data["res"]["rec_texts"]
+
+                else:
+
+                    detected = []
+
+            except Exception:
+
+                detected = []
+
+            for text in detected:
+
+                if text:
+
+                    texts.append(
+                        text.strip()
+                    )
+
+        return texts
+
+    # ---------------------------------------------------------
+    # Extract Full Header
+    # ---------------------------------------------------------
+
+    def extract(self, page):
+
         #
-        # enlarge before OCR
+        # Same tuned header region
         #
 
-        image = image.resize(
+        region = (
+            0.210,
+            0.166,
+            0.600,
+            0.256,
+        )
 
-            (
-                image.width * 4,
-                image.height * 4
+        texts = self.extract_region(
+            page,
+            region
+        )
+
+        words = []
+
+        for text in texts:
+
+            words.append(
+                (
+                    0,
+                    0,
+                    0,
+                    0,
+                    text,
+                    0,
+                    0,
+                    0
+                )
             )
 
+        print(
+            f"✅ PaddleOCR extracted "
+            f"{len(words)} words."
         )
 
-        from PIL import ImageOps
+        return words
 
-        image = image.convert("L")
 
-        image = ImageOps.autocontrast(image)
-
-        image = np.array(image)
-
-        results = self.reader.readtext(
-            image,
-            detail=0
-        )
-
-        return results
-
-#
+# ---------------------------------------------------------
 # Singleton
-#
+# ---------------------------------------------------------
 
 ocr = OCRExtractor()

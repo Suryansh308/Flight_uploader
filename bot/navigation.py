@@ -2,6 +2,7 @@ from bot.selectors import (
     SIDEBAR,
     TRIPS,
     MY_TRIPS,
+    TABLE,
 )
 
 
@@ -23,9 +24,13 @@ class Navigation:
             SIDEBAR
         ).click()
 
-        self.page.wait_for_timeout(500)
+        self.page.wait_for_timeout(
+            500
+        )
 
-        print("✅ Sidebar Opened")
+        print(
+            "✅ Sidebar Opened"
+        )
 
     # -----------------------------------------------------
     # Trips
@@ -33,15 +38,21 @@ class Navigation:
 
     def open_trips(self):
 
-        print("Opening Trips...")
+        print(
+            "Opening Trips..."
+        )
 
         self.page.locator(
             TRIPS
         ).click()
 
-        self.page.wait_for_timeout(500)
+        self.page.wait_for_timeout(
+            500
+        )
 
-        print("✅ Trips Opened")
+        print(
+            "✅ Trips Opened"
+        )
 
     # -----------------------------------------------------
     # My Trips
@@ -49,17 +60,37 @@ class Navigation:
 
     def open_my_trips(self):
 
-        print("Opening My Trips...")
+        print(
+            "Opening My Trips..."
+        )
 
         self.page.locator(
             MY_TRIPS
         ).click()
 
-        self.page.wait_for_load_state(
-            "networkidle"
+        #
+        # Do NOT use networkidle.
+        # Portal background requests may never become idle.
+        #
+
+        self.page.wait_for_timeout(
+            1500
         )
 
-        print("✅ My Trips Opened")
+        #
+        # Wait for the actual trip table.
+        #
+
+        self.page.locator(
+            TABLE
+        ).wait_for(
+            state="visible",
+            timeout=30000
+        )
+
+        print(
+            "✅ My Trips Opened"
+        )
 
     # -----------------------------------------------------
     # Complete Navigation

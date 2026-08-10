@@ -5,58 +5,127 @@ from models.trip import TripDocument
 
 class PDFParser:
 
-    DATE_PATTERN = re.compile(r"\d{2}/\d{2}/\d{4}")
-    FLIGHT_PATTERN = re.compile(r"^[A-Z]{2,}\d+[A-Z]*$")
+    DATE_PATTERN = re.compile(
+        r"\d{2}/\d{2}/\d{4}"
+    )
 
-    def parse(self, words, page_number):
+    FLIGHT_PATTERN = re.compile(
+        r"^[A-Z]{2,}\d+[A-Z]*$"
+    )
+
+    # ---------------------------------------------------------
+    # Parse Page
+    # ---------------------------------------------------------
+
+    def parse(
+        self,
+        words,
+        page_number
+    ):
 
         flight_number = None
         flight_date = None
 
-        print("\n========== PARSER TOKENS ==========")
+        # -----------------------------------------------------
+        # Debug: Show OCR / PDF Tokens
+        # -----------------------------------------------------
 
-        for word in words[:80]:
-            print(repr(word[4]))
+        print(
+            "\n========== PARSER TOKENS =========="
+        )
 
-        print("==================================\n")
+        for word in words:
 
+            try:
 
-        # -----------------------------
-# Find Flight Number
-# -----------------------------
+                print(
+                    repr(word[4])
+                )
+
+            except Exception:
+
+                continue
+
+        print(
+            "=================================="
+        )
+
+        # -----------------------------------------------------
+        # Ignore Common Non-Flight Tokens
+        # -----------------------------------------------------
 
         IGNORE = {
 
             "FLT",
+            "FLTNO",
+            "FLT NO",
             "NO",
             "DATE",
             "HUB",
             "CREW",
             "ORIGIN",
+            "ORIGIN:",
             "DESTINATION",
+            "DESTINATION:",
             "LOCATION",
             "PRINT",
             "TRIPSHEET",
-
+            "TRIP SHEET",
+            "TRIP",
+            "SHEET",
         }
+
+        # -----------------------------------------------------
+        # Find Flight Number
+        # -----------------------------------------------------
 
         for word in words:
 
-            text = word[4].upper().strip()
+            try:
+
+                text = (
+                    word[4]
+                    .upper()
+                    .strip()
+                )
+
+            except Exception:
+
+                continue
+
+            #
+            # Ignore known labels
+            #
 
             if text in IGNORE:
 
                 continue
 
-            if self.DATE_PATTERN.fullmatch(text):
+            #
+            # Ignore dates
+            #
+
+            if self.DATE_PATTERN.fullmatch(
+                text
+            ):
 
                 continue
 
-            if self.FLIGHT_PATTERN.fullmatch(text):
+            #
+            # Flight number pattern
+            #
+
+            if self.FLIGHT_PATTERN.fullmatch(
+                text
+            ):
 
                 flight_number = text
 
                 break
+
+        # -----------------------------------------------------
+        # Flight Number Validation
+        # -----------------------------------------------------
 
         if flight_number is None:
 
@@ -64,20 +133,49 @@ class PDFParser:
                 "Flight Number not found"
             )
 
-        
-
-        # -----------------------------
-        # Find first date
-        # -----------------------------
+        # -----------------------------------------------------
+        # Find Flight Date
+        # -----------------------------------------------------
 
         for word in words:
 
-            if self.DATE_PATTERN.fullmatch(word[4]):
-                flight_date = word[4]
+            try:
+
+                text = (
+                    word[4]
+                    .strip()
+                )
+
+            except Exception:
+
+                continue
+
+            if self.DATE_PATTERN.fullmatch(
+                text
+            ):
+
+                flight_date = text
+
                 break
 
+        # -----------------------------------------------------
+        # Flight Date Validation
+        # -----------------------------------------------------
+
         if not flight_date:
-            raise Exception("Flight Date not found")
+
+            raise Exception(
+                "Flight Date not found"
+            )
+
+        # -----------------------------------------------------
+        # Successful Parse
+        # -----------------------------------------------------
+
+        print(
+            f"✅ {flight_number} | "
+            f"{flight_date}"
+        )
 
         return TripDocument(
             flight_number=flight_number,

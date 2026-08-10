@@ -1,7 +1,9 @@
 from pathlib import Path
 
 import fitz  # PyMuPDF
+
 from pdf.ocr import ocr
+
 
 class PDFExtractor:
 
@@ -9,27 +11,40 @@ class PDFExtractor:
 
         self.pdf_path = Path(pdf_path)
 
-        self.doc = fitz.open(self.pdf_path)
+        self.doc = fitz.open(
+            self.pdf_path
+        )
 
-        self.page_count = len(self.doc)
+        self.page_count = len(
+            self.doc
+        )
 
     # ----------------------------------------------------------
     # Extract Words
     # ----------------------------------------------------------
 
-    def get_page_words(self, page_index):
+    def get_page_words(
+        self,
+        page_index
+    ):
 
-        page = self.doc.load_page(page_index)
+        page = self.doc.load_page(
+            page_index
+        )
 
         #
         # First try embedded text
         #
 
-        words = page.get_text("words")
+        words = page.get_text(
+            "words"
+        )
 
         if words:
 
-            print("✅ Text layer detected.")
+            print(
+                "✅ Text layer detected."
+            )
 
             return words
 
@@ -37,13 +52,17 @@ class PDFExtractor:
         # OCR fallback
         #
 
-        print("⚠ No text layer found.")
+        print(
+            "⚠ No text layer found."
+        )
 
-        print("🔍 Running OCR...")
+        print(
+            "🔍 Running OCR..."
+        )
 
-        words = ocr.extract(page)
-
-        print(f"✅ OCR extracted {len(words)} words.")
+        words = ocr.extract(
+            page
+        )
 
         return words
 
@@ -51,15 +70,24 @@ class PDFExtractor:
     # Save One Page as PDF
     # ----------------------------------------------------------
 
-    def save_page_pdf(self, page_index):
+    def save_page_pdf(
+        self,
+        page_index
+    ):
 
-        output_dir = self.pdf_path.parent / "split_pages"
+        output_dir = (
+            self.pdf_path.parent /
+            "split_pages"
+        )
 
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(
+            exist_ok=True
+        )
 
         output_file = (
             output_dir /
-            f"{self.pdf_path.stem}_page_{page_index + 1}.pdf"
+            f"{self.pdf_path.stem}"
+            f"_page_{page_index + 1}.pdf"
         )
 
         new_pdf = fitz.open()
@@ -70,7 +98,9 @@ class PDFExtractor:
             to_page=page_index
         )
 
-        new_pdf.save(output_file)
+        new_pdf.save(
+            output_file
+        )
 
         new_pdf.close()
 
@@ -80,58 +110,34 @@ class PDFExtractor:
     # Get Trip Data
     # ----------------------------------------------------------
 
-    # def get_trip(self, page_index, parser):
+    def get_trip(
+        self,
+        page_index,
+        parser
+    ):
 
-    #     words = self.get_page_words(page_index)
-
-    #     trip = parser.parse(
-    #         words=words,
-    #         page_number=page_index + 1
-    #     )
-
-    #     # Attach the actual PDF that belongs to this page
-    #     trip.pdf_file = self.save_page_pdf(page_index)
-
-    #     return trip
-    def get_trip(self, page_index, parser):
-
-        page = self.doc.load_page(page_index)
-
-        #
-        # TEMP DEBUG
-        #
-
-        from pdf.regions import FLIGHT_BOX
-
-        flight = ocr.extract_region(
-            page,
-            FLIGHT_BOX
+        words = self.get_page_words(
+            page_index
         )
-
-        print("\n==============================")
-        print("Flight OCR")
-        print("==============================")
-
-        print(flight)
-
-        print("==============================")
-
-        #
-        # Existing pipeline
-        #
-
-        words = self.get_page_words(page_index)
 
         trip = parser.parse(
             words=words,
             page_number=page_index + 1
         )
 
-        trip.pdf_file = self.save_page_pdf(
-            page_index
+        #
+        # Attach the actual PDF belonging
+        # to this page
+        #
+
+        trip.pdf_file = (
+            self.save_page_pdf(
+                page_index
+            )
         )
 
         return trip
+
     # ----------------------------------------------------------
     # Close
     # ----------------------------------------------------------
